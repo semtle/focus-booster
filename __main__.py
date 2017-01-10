@@ -1,13 +1,16 @@
 import os
-import platform
+from threading import Thread
 from tkinter import *
 from tkinter.ttk import *
 
-path = os.path.dirname(__file__) + '/'
+from pydub import AudioSegment
+from pydub.playback import play
+
+path = os.path.dirname(__file__)
 
 
 def update():
-    global time, sec, minu, itv, isSes, breakNum, brkSec, brkMin
+    global time, sec, minu, itv, isSes, breakNum, brkSec, brkMin, bell
 
     sec -= 1
     if sec < 0:
@@ -39,8 +42,9 @@ def update():
         else:
             pbTime['value'] += itv
 
-            if platform.system() == 'Windows' and minu == 0 and sec <= 10:
-                mf.bell()
+            if minu == 0 and sec <= 10:
+                thread = Thread(target=play, args=(bell,))
+                thread.start()
 
             if style.theme_use() == 'alt':
                 if pbTime['value'] / pbTime['maximum'] < 0.2:
@@ -125,12 +129,13 @@ if __name__ == '__main__':
     seSec = 0
     brkMin = 5
     brkSec = 0
+    bell = AudioSegment.from_mp3(os.path.join(path, 'bell.mp3'))
 
     root = Tk()
     root.title("An's focus booster v1.0")
     root.minsize(300, 80)
     root.maxsize(600, 80)
-    img = PhotoImage(file=path + 'icon.gif')
+    img = PhotoImage(file=os.path.join(path, 'icon.gif'))
     root.tk.call('wm', 'iconphoto', root._w, img)
 
     style = Style()
