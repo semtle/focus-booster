@@ -6,220 +6,210 @@ from tkinter.ttk import *
 from pydub import AudioSegment
 from pydub.playback import play
 
-path = os.path.dirname(__file__)
+
+class Core(Tk):
+    def get_w(self):
+        return self._w
 
 
-def update():
-    global time, sec, minu, itv, isSes, breakNum, brkSec, brkMin, bell
+class Application(Frame):
+    def __init__(self, master=None, **kw):
+        super().__init__(master, **kw)
 
-    sec -= 1
-    if sec < 0:
-        sec = 59
-        minu -= 1
+        self.path = os.path.dirname(__file__)
+        self.master.title("An's focus booster v2.0")
+        self.master.minsize(300, 80)
+        self.master.maxsize(600, 80)
 
-    stime.set('{:02d}:{:02d}'.format(minu, sec))
+        try:
+            img = PhotoImage(file=os.path.join(self.path, 'icon.png'))
+            self.master.tk.call('wm', 'iconphoto', self.master.get_w(), img)
+        except TclError:
+            img = PhotoImage(file=os.path.join(self.path, 'icon.gif'))
+            self.master.tk.call('wm', 'iconphoto', self.master.get_w(), img)
 
-    if isSes:
-        if sec == 0 and minu == 0:
-            minu = brkMin
-            sec = brkSec
+        self.sec = self.itv = self.ses_num = self.break_num = self.ps_sec = self.se_sec = self.brk_sec = 0
+        self.minu = self.ps_min = self.ses_min = 25
+        self.is_ses = True
+        self.brk_min = 5
+        self.bell = AudioSegment.from_mp3(os.path.join(self.path, 'bell.mp3'))
+        self.time = self.master.after(0)
 
-            if minu == 0 and sec == 0:
-                stop()
-                return
+        self.style = Style()
+        self.tbs = StringVar()
+        self.stime = StringVar()
+        self.t_ses_min = StringVar()
+        self.t_se_sec = StringVar()
+        self.t_brk_min = StringVar()
+        self.t_brk_sec = StringVar()
+        self.ses = StringVar()
+        self.win_op = Toplevel(self.master)
+        self.pb_time = Progressbar(self, orient=HORIZONTAL, mode='determinate', maximum=2520)
 
-            breakNum += 1
-            if breakNum % 4 == 0:
-                t = (minu * 60 + sec) * 3
-                minu = t // 60
-                sec = t % 60
+        self.widgets()
 
-            itv = pbTime['maximum'] / (minu * 60 + sec)
-            ses.set('Break {:02d}'.format(breakNum))
-            pbTime['value'] = pbTime['maximum']
-            isSes = False
-            style.configure('Horizontal.TProgressbar', background='#f0f')
+    def widgets(self):
+        themes = self.style.theme_names()
+        if 'xpnative' in themes:
+            self.style.theme_use('xpnative')
+        elif 'aqua' in themes:
+            self.style.theme_use('aqua')
+        elif 'alt' in themes:
+            self.style.theme_use('alt')
         else:
-            pbTime['value'] += itv
+            self.style.theme_use('default')
+        self.style.configure('Horizontal.TProgressbar', background='#00f')
 
-            if minu == 0 and sec <= 10:
-                thread = Thread(target=play, args=(bell,))
-                thread.start()
+        self.stime.set('25:00')
+        lb_time = Label(self, textvariable=self.stime)
+        lb_time.grid(column=0, row=0, sticky='s')
 
-            if style.theme_use() == 'alt':
-                if pbTime['value'] / pbTime['maximum'] < 0.2:
-                    pass
-                elif pbTime['value'] / pbTime['maximum'] < 0.4:
-                    style.configure('Horizontal.TProgressbar', background='#0ff')
-                elif pbTime['value'] / pbTime['maximum'] < 0.6:
-                    style.configure('Horizontal.TProgressbar', background='#0f0')
-                elif pbTime['value'] / pbTime['maximum'] < 0.8:
-                    style.configure('Horizontal.TProgressbar', background='#ff0')
-                else:
-                    style.configure('Horizontal.TProgressbar', background='#f00')
-    else:
-        if sec == 0 and minu == 0:
-            stop()
-            isSes = True
+        self.ses.set('Session {:02d}'.format(self.ses_num))
+        lb_ses = Label(self, textvariable=self.ses)
+        lb_ses.grid(column=0, row=1, sticky='w')
+
+        self.pb_time.grid(column=1, row=0, rowspan=2, padx=5, sticky='wnes')
+
+        self.tbs.set('Start')
+        btn_s = Button(self, textvariable=self.tbs, command=self.btn_start)
+        btn_s.grid(column=2, row=0, pady=2, sticky='ne')
+
+        btn_i = Button(self, text='Option', command=self.open_pref)
+        btn_i.grid(column=2, row=1, pady=2, sticky='se')
+
+        self.master.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
+
+        self.win_op.title('Preferences')
+        self.win_op.resizable(False, False)
+        self.win_op.protocol('WM_DELETE_WINDOW', self.ok_pref)
+
+        lf_ses = Labelframe(self.win_op, text='Session Time:', padding=10)
+        lf_ses.grid(column=0, row=0, columnspan=2)
+
+        self.t_ses_min.set(25)
+        sb_ses_min = Spinbox(lf_ses, from_=0, to=999, textvariable=self.t_ses_min, increment=1, state='readonly')
+        sb_ses_min.grid(column=0, row=0, padx=5, pady=5)
+
+        sb_se_sec = Spinbox(lf_ses, from_=0, to=59, textvariable=self.t_se_sec, increment=1, state='readonly')
+        sb_se_sec.grid(column=0, row=1, padx=5, pady=5)
+
+        lb_ses_min = Label(lf_ses, text='Minutes')
+        lb_ses_min.grid(column=1, row=0, sticky='w')
+
+        lb_se_sec = Label(lf_ses, text='Seconds')
+        lb_se_sec.grid(column=1, row=1, sticky='w')
+
+        lf_brk = Labelframe(self.win_op, text='Break Time:', padding=10)
+        lf_brk.grid(column=0, row=1, columnspan=2)
+
+        self.t_brk_min.set(5)
+        sb_brk_min = Spinbox(lf_brk, from_=0, to=60, textvariable=self.t_brk_min, increment=1, state='readonly')
+        sb_brk_min.grid(column=0, row=0, padx=5, pady=5)
+
+        sb_brk_sec = Spinbox(lf_brk, from_=0, to=59, textvariable=self.t_brk_sec, increment=1, state='readonly')
+        sb_brk_sec.grid(column=0, row=1, padx=5, pady=5)
+
+        lb_brk_min = Label(lf_brk, text='Minutes')
+        lb_brk_min.grid(column=1, row=0, sticky='w')
+
+        lb_brk_sec = Label(lf_brk, text='Seconds')
+        lb_brk_sec.grid(column=1, row=1, sticky='w')
+
+        self.win_op.state('withdraw')
+
+    def btn_start(self):
+        if self.tbs.get() == 'Start':
+            self.start()
+        else:
+            self.stop()
+
+    def open_pref(self):
+        self.win_op.state('normal')
+
+    def ok_pref(self):
+        self.ses_min = int(self.t_ses_min.get())
+        self.se_sec = int(self.t_se_sec.get())
+        self.brk_min = int(self.t_brk_min.get())
+        self.brk_sec = int(self.t_brk_sec.get())
+        self.win_op.state('withdrawn')
+
+        if self.tbs.get() == 'Start':
+            self.stime.set('{:02d}:{:02d}'.format(self.ses_min, self.se_sec))
+
+    def start(self):
+        self.minu = self.ses_min
+        self.sec = self.se_sec
+        if self.minu == 0 and self.sec == 0:
             return
+
+        self.itv = self.pb_time['maximum'] / (self.minu * 60 + self.sec)
+        self.style.configure('Horizontal.TProgressbar', background='#00f')
+        self.tbs.set('Stop')
+        self.ses_num += 1
+        self.ses.set('Session {:02d}'.format(self.ses_num))
+        self.time = self.master.after(1000, self.update)
+
+    def stop(self):
+        self.pb_time['value'] = 0
+        self.master.after_cancel(self.time)
+        self.tbs.set('Start')
+
+    def update(self):
+        self.sec -= 1
+        if self.sec < 0:
+            self.sec = 59
+            self.minu -= 1
+
+        self.stime.set('{:02d}:{:02d}'.format(self.minu, self.sec))
+        if self.is_ses:
+            if self.sec == 0 and self.minu == 0:
+                self.minu = self.brk_min
+                self.sec = self.brk_sec
+
+                if self.minu == 0 and self.sec == 0:
+                    self.stop()
+                    return
+
+                self.break_num += 1
+                if self.break_num % 4 == 0:
+                    t = (self.minu * 60 + self.sec) * 3
+                    self.minu = t // 60
+                    self.sec = t % 60
+
+                self.itv = self.pb_time['maximum'] / (self.minu * 60 + self.sec)
+                self.ses.set('Break {:02d}'.format(self.break_num))
+                self.pb_time['value'] = self.pb_time['maximum']
+                self.is_ses = False
+                self.style.configure('Horizontal.TProgressbar', background='#f0f')
+            else:
+                self.pb_time['value'] += self.itv
+                if self.minu == 0 and self.sec <= 10:
+                    thread = Thread(target=play, args=(self.bell,))
+                    thread.start()
+
+                if self.style.theme_use() == 'alt':
+                    if self.pb_time['value'] / self.pb_time['maximum'] < 0.2:
+                        pass
+                    elif self.pb_time['value'] / self.pb_time['maximum'] < 0.4:
+                        self.style.configure('Horizontal.TProgressbar', background='#0ff')
+                    elif self.pb_time['value'] / self.pb_time['maximum'] < 0.6:
+                        self.style.configure('Horizontal.TProgressbar', background='#0f0')
+                    elif self.pb_time['value'] / self.pb_time['maximum'] < 0.8:
+                        self.style.configure('Horizontal.TProgressbar', background='#ff0')
+                    else:
+                        self.style.configure('Horizontal.TProgressbar', background='#f00')
         else:
-            pbTime['value'] -= itv
-
-    time = root.after(1000, update)
-
-
-def start():
-    global sesNum, time, sec, minu, itv, sesMin, seSec
-
-    minu = sesMin
-    sec = seSec
-    if minu == 0 and sec == 0:
-        return
-
-    itv = pbTime['maximum'] / (minu * 60 + sec)
-    style.configure('Horizontal.TProgressbar', background='#00f')
-    tbs.set('Stop')
-    sesNum += 1
-    ses.set('Session {:02d}'.format(sesNum))
-    time = root.after(1000, update)
-
-
-def stop():
-    global time
-
-    pbTime['value'] = 0
-    root.after_cancel(time)
-    tbs.set('Start')
-
-
-def btn_s():
-    if tbs.get() == 'Start':
-        start()
-    else:
-        stop()
-
-
-def open_pref():
-    winOp.state('normal')
-
-
-def ok_pref():
-    global brkSec, brkMin, sesMin, seSec
-
-    sesMin = int(tSesMin.get())
-    seSec = int(tSeSec.get())
-    brkMin = int(tBrkMin.get())
-    brkSec = int(tBrkSec.get())
-    winOp.state('withdrawn')
-
-    if tbs.get() == 'Start':
-        stime.set('{:02d}:{:02d}'.format(sesMin, seSec))
-
+            if self.sec == 0 and self.minu == 0:
+                self.stop()
+                self.is_ses = True
+                return
+            else:
+                self.pb_time['value'] -= self.itv
+        self.time = self.master.after(1000, self.update)
 
 if __name__ == '__main__':
-    sec = 0
-    minu = 25
-    itv = 0
-    sesNum = 0
-    breakNum = 0
-    psMin = 25
-    psSec = 0
-    isSes = True
-    sesMin = 25
-    seSec = 0
-    brkMin = 5
-    brkSec = 0
-    bell = AudioSegment.from_mp3(os.path.join(path, 'bell.mp3'))
-
-    root = Tk()
-    root.title("An's focus booster v1.0")
-    root.minsize(300, 80)
-    root.maxsize(600, 80)
-    img = PhotoImage(file=os.path.join(path, 'icon.gif'))
-    root.tk.call('wm', 'iconphoto', root._w, img)
-
-    style = Style()
-    themes = style.theme_names()
-
-    if 'xpnative' in themes:
-        style.theme_use('xpnative')
-    elif 'aqua' in themes:
-        style.theme_use('aqua')
-    elif 'alt' in themes:
-        style.theme_use('alt')
-    else:
-        style.theme_use('default')
-
-    style.configure('Horizontal.TProgressbar', background='#00f')
-    time = root.after(0)
-
-    mf = Frame(root, padding=10)
-    mf.grid(column=0, row=0, sticky='wnes')
-
-    stime = StringVar()
-    stime.set('25:00')
-    lbTime = Label(mf, textvariable=stime)
-    lbTime.grid(column=0, row=0, sticky='s')
-
-    ses = StringVar()
-    ses.set('Session {:02d}'.format(sesNum))
-    lbSes = Label(mf, textvariable=ses)
-    lbSes.grid(column=0, row=1, sticky='w')
-
-    pbTime = Progressbar(mf, orient=HORIZONTAL, mode='determinate', maximum=2520)
-    pbTime.grid(column=1, row=0, rowspan=2, padx=5, sticky='wnes')
-
-    tbs = StringVar()
-    tbs.set('Start')
-    btnS = Button(mf, textvariable=tbs, command=btn_s)
-    btnS.grid(column=2, row=0, pady=2, sticky='ne')
-
-    btnI = Button(mf, text='Option', command=open_pref)
-    btnI.grid(column=2, row=1, pady=2, sticky='se')
-
-    root.columnconfigure(0, weight=1)
-    mf.columnconfigure(1, weight=1)
-
-    winOp = Toplevel(root)
-    winOp.title('Preferences')
-    winOp.resizable(False, False)
-    winOp.protocol('WM_DELETE_WINDOW', ok_pref)
-
-    lfSes = Labelframe(winOp, text='Session Time:', padding=10)
-    lfSes.grid(column=0, row=0, columnspan=2)
-
-    tSesMin = StringVar()
-    tSesMin.set(25)
-    sbSesMin = Spinbox(lfSes, from_=0, to=999, textvariable=tSesMin, increment=1, state='readonly')
-    sbSesMin.grid(column=0, row=0, padx=5, pady=5)
-
-    tSeSec = StringVar()
-    sbSeSec = Spinbox(lfSes, from_=0, to=59, textvariable=tSeSec, increment=1, state='readonly')
-    sbSeSec.grid(column=0, row=1, padx=5, pady=5)
-
-    lbSesMin = Label(lfSes, text='Minutes')
-    lbSesMin.grid(column=1, row=0, sticky='w')
-
-    lbSeSec = Label(lfSes, text='Seconds')
-    lbSeSec.grid(column=1, row=1, sticky='w')
-
-    lfBrk = Labelframe(winOp, text='Break Time:', padding=10)
-    lfBrk.grid(column=0, row=1, columnspan=2)
-
-    tBrkMin = StringVar()
-    tBrkMin.set(5)
-    sbBrkMin = Spinbox(lfBrk, from_=0, to=60, textvariable=tBrkMin, increment=1, state='readonly')
-    sbBrkMin.grid(column=0, row=0, padx=5, pady=5)
-
-    tBrkSec = StringVar()
-    sbBrkSec = Spinbox(lfBrk, from_=0, to=59, textvariable=tBrkSec, increment=1, state='readonly')
-    sbBrkSec.grid(column=0, row=1, padx=5, pady=5)
-
-    lbBrkMin = Label(lfBrk, text='Minutes')
-    lbBrkMin.grid(column=1, row=0, sticky='w')
-
-    lbBrkSec = Label(lfBrk, text='Seconds')
-    lbBrkSec.grid(column=1, row=1, sticky='w')
-
-    winOp.state('withdraw')
-    root.mainloop()
+    root = Core()
+    app = Application(root, padding=10)
+    app.grid(column=0, row=0, sticky='wnes')
+    app.mainloop()
